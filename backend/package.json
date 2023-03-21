@@ -1,5 +1,6 @@
 {
   "name": "node-project-slignair",
+  "proxy": "http://localhost:8000",
   "version": "1.0.0",
   "description": "This is the backend app for Slingair",
   "main": "server.js",
