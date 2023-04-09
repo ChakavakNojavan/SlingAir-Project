@@ -15,7 +15,7 @@ const App = () => {
     const storedValue = window.localStorage.getItem("reservationId");
 
     try {
-      return storedValue !== null ? JSON.parse(storedValue) : storedValue;
+      return storedValue;
     } catch (error) {
       console.error("Error parsing reservationId from localStorage:", error);
       return null;

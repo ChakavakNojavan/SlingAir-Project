@@ -60,9 +60,37 @@ const getSingleReservation = async (reservationsCollection, req, res) => {
     res.status(500).send("Error fetching reservation");
   }
 };
+const updateSeatAvailability = async (
+  flightsCollection,
+  flightId,
+  seat,
+  isAvailable
+) => {
+  const flight = await flightsCollection.findOne({ _id: flightId });
+
+  if (!flight) {
+    throw new Error("Flight not found");
+  }
+
+  const seatIndex = flight.seats.findIndex((s) => s.id === seat);
+
+  if (seatIndex === -1) {
+    throw new Error("Seat not found");
+  }
+
+  await flightsCollection.updateOne(
+    { _id: flightId, "seats.id": seat },
+    { $set: { "seats.$.isAvailable": isAvailable } }
+  );
+};
 
 // creates a new reservation
-const addReservation = async (reservationsCollection, req, res) => {
+const addReservation = async (
+  flightsCollection,
+  reservationsCollection,
+  req,
+  res
+) => {
   try {
     const { flight, seat, firstName, lastName, email } = req.body;
 
@@ -75,6 +103,9 @@ const addReservation = async (reservationsCollection, req, res) => {
         lastName,
         email,
       };
+
+      await updateSeatAvailability(flightsCollection, flight, seat, false);
+
       console.log("addReservation: New reservation:", newReservation);
       await reservationsCollection.insertOne(newReservation);
       res.status(201).json(newReservation);
@@ -88,10 +119,21 @@ const addReservation = async (reservationsCollection, req, res) => {
 };
 
 // updates a specified reservation
-const updateReservation = async (reservationsCollection, req, res) => {
+const updateReservation = async (
+  flightsCollection,
+  reservationsCollection,
+  req,
+  res
+) => {
   const { _id, flight, seat, givenName, surname, email } = req.body;
 
   try {
+    const reservation = await reservationsCollection.findOne({ _id: _id });
+    if (!reservation) {
+      res.status(404).json({ error: "Reservation not found" });
+      return;
+    }
+
     const updatedReservation = {
       _id,
       flight,
@@ -100,6 +142,14 @@ const updateReservation = async (reservationsCollection, req, res) => {
       surname,
       email,
     };
+
+    await updateSeatAvailability(
+      flightsCollection,
+      reservation.flight,
+      reservation.seat,
+      true
+    );
+    await updateSeatAvailability(flightsCollection, flight, seat, false);
 
     const { matchedCount, modifiedCount } =
       await reservationsCollection.updateOne(
@@ -119,10 +169,30 @@ const updateReservation = async (reservationsCollection, req, res) => {
 };
 
 // deletes a specified reservation
-const deleteReservation = async (reservationsCollection, req, res) => {
+const deleteReservation = async (
+  flightsCollection,
+  reservationsCollection,
+  req,
+  res
+) => {
   const reservationId = req.params.reservation;
 
   try {
+    const reservation = await reservationsCollection.findOne({
+      _id: reservationId,
+    });
+    if (!reservation) {
+      res.status(404).json({ error: "Reservation not found" });
+      return;
+    }
+
+    await updateSeatAvailability(
+      flightsCollection,
+      reservation.flight,
+      reservation.seat,
+      true
+    );
+
     const { deletedCount } = await reservationsCollection.deleteOne({
       _id: reservationId,
     });
@@ -145,13 +215,13 @@ const handlers = (flightsCollection, reservationsCollection) => {
     getReservations: (req, res) =>
       getReservations(reservationsCollection, req, res),
     addReservation: (req, res) =>
-      addReservation(reservationsCollection, req, res),
+      addReservation(flightsCollection, reservationsCollection, req, res),
     getSingleReservation: (req, res) =>
       getSingleReservation(reservationsCollection, req, res),
     deleteReservation: (req, res) =>
-      deleteReservation(reservationsCollection, req, res),
+      deleteReservation(flightsCollection, reservationsCollection, req, res),
     updateReservation: (req, res) =>
-      updateReservation(reservationsCollection, req, res),
+      updateReservation(flightsCollection, reservationsCollection, req, res),
   };
 };
 
